@@ -16,45 +16,48 @@ ReadSingleSample <- function(infh, winsize) {
     fh = read.delim(infh, head = TRUE, sep=",")
     fh = fh[,c("CHR", "BIN.START", "Z")]
     fh[,c("BIN.START", "Z")] = apply(fh[,c("BIN.START", "Z")], 2, function(x) as.numeric(as.character(x)))
-    fh$WIN.END = fh$BIN.START - winsize
+    fh$WIN.END = fh$BIN.START + winsize
     fh = fh[,c("CHR", "BIN.START", "WIN.END", "Z")]
     fh$Z[fh$Z<3 & fh$Z>-3] = 0
     fh$Z[fh$Z>=3] = 1
     fh$Z[fh$Z<=-3] = -1
     fh$CHR = paste0("chr", fh$CHR)
-    colnames(fh) = c("chr", "start", "end", "Z")
+    fh$plateau = rep(rle(fh$Z)$lengths, rle(fh$Z)$lengths)
+    colnames(fh) = c("chr", "start", "end", "Z", "PLAT")
     return(fh)
 }
 
 
-FetchMultiSamplesNegZ <- function(samplelist, winsize) {
+FetchMultiSamplesNegZ <- function(samplelist, winsize, platLen) {
     sl = read.delim(samplelist, header = FALSE)
+    platLen = as.numeric(as.character(platLen))
     dflist = list()
     for (i in (1:nrow(sl))) {
 	zfh = ReadSingleSample(as.character(sl[i,]), winsize)
-	zfhneg = subset(zfh, zfh$Z == -1)
+	zfhneg = subset(zfh, zfh$Z == -1 & zfh$PLAT >= platLen)
 	dflist[[i]] = zfhneg
     }
     return(dflist)
 }
 
 
-FetchMultiSamplesPosZ <- function(samplelist, winsize) {
+FetchMultiSamplesPosZ <- function(samplelist, winsize, platLen) {
     sl = read.delim(samplelist, header = FALSE)
+    platLen = as.numeric(as.character(platLen))
     dflist = list()
     for (i in (1:nrow(sl))) {
 	zfh = ReadSingleSample(as.character(sl[i,]), winsize)
-	zfhpos = subset(zfh, zfh$Z == 1)
+	zfhpos = subset(zfh, zfh$Z == 1 & zfh$PLAT >= platLen)
 	dflist[[i]] = zfhpos
     }
     return(dflist)
 }
 
 
-circosplot <- function(workdir, prefix, samplelist, winsize) {
+circosplot <- function(workdir, prefix, samplelist, winsize, platLen) {
     fo = paste0(workdir, "/", prefix, ".circos.pdf")
-    mfhneg = FetchMultiSamplesNegZ(samplelist, winsize)
-    mfhpos = FetchMultiSamplesPosZ(samplelist, winsize)
+    mfhneg = FetchMultiSamplesNegZ(samplelist, winsize, platLen)
+    mfhpos = FetchMultiSamplesPosZ(samplelist, winsize, platLen)
     pdf(fo, width = 8, height = 8)
     circos.par("start.degree" = 90)
     circos.initializeWithIdeogram(chromosome.index = paste0("chr", 1:22), plotType = c("ideogram", "axis", "labels"),track.height = 0.03, ideogram.height = 0.03)
